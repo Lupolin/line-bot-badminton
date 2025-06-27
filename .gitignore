@@ -18,7 +18,6 @@ poetry.lock
 
 # Python環境相關
 .env
-.env.*
 
 # === VSCode 設定（可選）===
 .vscode/
