@@ -1,0 +1,27 @@
+{
+  "users": [
+    {
+      "user_id": "<LINE_USER_ID>",
+      "name": "NAME",
+      "notification_times": [
+        { "day": "thursday", "hour": 13, "minute": 53, "type": "ask" },
+        { "day": "thursday", "hour": 13, "minute": 56, "type": "summary" }
+      ]
+    },
+    {
+      "user_id": "<LINE_USER_ID>",
+      "name": "NAME",
+      "notification_times": [
+        { "day": "friday", "hour": 9, "minute": 0, "type": "ask" }
+      ]
+    },
+    {
+      "user_id": "<LINE_USER_ID>",
+      "name": "NAME",
+      "notification_times": [
+        { "day": "thursday", "hour": 13, "minute": 54, "type": "ask" },
+        { "day": "thursday", "hour": 13, "minute": 56, "type": "summary" }
+      ]
+    }
+  ]
+}

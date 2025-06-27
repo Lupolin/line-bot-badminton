@@ -1,0 +1,46 @@
+name: Deploy Judy's Dinner to EC2
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            set -e
+            echo "[STEP] 切換目錄"
+            cd /home/ec2-user/projects/python/line-bot-judys-dinner
+
+            echo "[STEP] 更新程式碼"
+            git reset --hard HEAD
+            git pull origin master
+
+            echo "[STEP] 啟動 venv"
+            if [ -f "venv/bin/activate" ]; then
+              source venv/bin/activate
+              echo "[INFO] Python 路徑: $(which python)"
+              echo "[INFO] Pip 路徑: $(which pip)"
+            else
+              echo "[ERROR] 找不到 venv，請確認路徑"
+              exit 1
+            fi
+
+            echo "[STEP] 安裝 requirements"
+            pip install -r requirements.txt
+            pip show pytz || echo "[WARNING] pytz 沒有成功安裝"
+
+            echo "[STEP] 重啟 systemd 服務"
+            sudo systemctl restart judys-dinner

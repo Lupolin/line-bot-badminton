@@ -1,0 +1,60 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# 虛擬環境（venv/ 或 .venv/）
+venv/
+.venv/
+
+# Pipenv / Poetry
+Pipfile.lock
+poetry.lock
+
+# Jupyter Notebook checkpoint
+.ipynb_checkpoints/
+
+# Python環境相關
+.env
+.env.*
+
+# === VSCode 設定（可選）===
+.vscode/
+
+# === 日誌檔案 ===
+*.log
+logs/
+
+# === 本地使用者設定檔 ===
+users_config.json
+config.json
+*.secrets.json
+
+# === 系統相關 ===
+.DS_Store         # macOS
+Thumbs.db         # Windows
+
+# === 單元測試 / coverage ===
+coverage/
+htmlcov/
+.cache/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# === build / dist / wheel ===
+build/
+dist/
+*.egg-info/
+*.egg
+
+# === Git相關 ===
+*.orig
+*.swp
+
+# === 範例用 JSON ===
+!users_config.example.json
