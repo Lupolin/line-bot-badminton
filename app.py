@@ -74,7 +74,7 @@ def reply(event, text):
     except Exception as e:
         logger.error("[Reply error] %s", e)
 
-# ✅ 處理訊息事件Add commentMore actions
+# ✅ 處理訊息事件
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     friday_str = get_friday()
@@ -84,16 +84,18 @@ def handle_message(event):
         reply_text = event.message.text.strip()
         user_name = get_name_from_config(user_id)
 
-        print(f"[MessageEvent] 使用者 {user_id}（{user_name}）輸入：{reply_text}")
+        logger.info(f"[MessageEvent] 使用者 {user_id}（{user_name}）輸入：{reply_text}")
 
         # 📊 查詢統計
         if reply_text in ["統計"]:
-            yes_list, no_list = get_today_stats("all")
+            yes_list, no_list, no_reply_list = get_today_stats("all")
             yes_names = "\n".join(f"- {name}" for name in yes_list)
             no_names = "\n".join(f"- {name}" for name in no_list)
+            no_reply_names = "\n".join(f"- {name}" for name in no_reply_list)
             response = f"出席統計（{friday_str}）\n"
             response += f"✅ 要打球（{len(yes_list)}人）:\n{yes_names or '（無）'}\n\n"
-            response += f"❌ 不打球（{len(no_list)}人）:\n{no_names or '（無）'}"
+            response += f"❌ 不打球（{len(no_list)}人）:\n{no_names or '（無）'}\n\n"
+            response += f"😡 未回應（{len(no_reply_list)}人）:\n{no_reply_names or '（無）'}"
             reply(event, response)
             return
 
@@ -104,18 +106,18 @@ def handle_message(event):
                 if has_replied_today(group_or_user_id, user_id):
                     updated = update_reply(group_or_user_id, user_id, reply_text)
                     if updated:
-                        print(f"[記錄更新] {user_name} 已更新為「{reply_text}」")
+                        logger.info(f"[記錄更新] {user_name} 已更新為「{reply_text}」")
                     else:
-                        print(f"[記錄略過] {user_name} 已回覆相同內容「{reply_text}」，略過")
+                        logger.info(f"[記錄略過] {user_name} 已回覆相同內容「{reply_text}」，略過")
                 else:
                     insert_reply(group_or_user_id, user_id, user_name, reply_text)
-                    print(f"[記錄新增] {user_name} 回覆「{reply_text}」")
+                    logger.info(f"[記錄新增] {user_name} 回覆「{reply_text}」")
             except Exception as e:
-                print("[資料庫錯誤]", e)
+                logger.error("[資料庫錯誤] %s", e)
             return
 
     except Exception as e:
-        print("[Unhandled error in handle_message]", e)
+        logger.error("[Unhandled error in handle_message] %s", e)
 
 # ✅ 初始化（給 Gunicorn 或本地開發使用）
 init_db()

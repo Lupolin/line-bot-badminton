@@ -82,7 +82,7 @@ def send_ask_notification(user):
 
 def send_summary_notification(user):
     try:
-        yes_list, no_list = get_today_stats("all")
+        yes_list, no_list, no_reply_list = get_today_stats("all")
         friday_str = get_friday()
 
         summary = f"出席統計（{friday_str}）\n"
@@ -90,6 +90,8 @@ def send_summary_notification(user):
         summary += "\n".join(f"- {name}" for name in yes_list) or "（無）"
         summary += f"\n\n❌ 不打球（{len(no_list)}人）:\n"
         summary += "\n".join(f"- {name}" for name in no_list) or "（無）"
+        summary += f"\n\n😡 未回應（{len(no_reply_list)}人）:\n"
+        summary += "\n".join(f"- {name}" for name in no_reply_list) or "（無）"
 
         push_message_to_user(user["user_id"], summary)
         logger.info("已向 %s 發送統計摘要", user["name"])
@@ -140,7 +142,7 @@ def reset_replies_with_log():
 scheduler = BackgroundScheduler(timezone=tz)
 scheduler.add_job(scheduled_notification, 'cron', minute='*')
 
-scheduler.add_job(reset_replies_with_log, 'cron', day_of_week='sun', hour=21, minute=0)
+scheduler.add_job(reset_replies_with_log, 'cron', day_of_week='mon', hour=11, minute=0)
 
 # ✅ 對外暴露的排程啟動函式
 def start_scheduler():

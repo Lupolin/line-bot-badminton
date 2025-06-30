@@ -86,30 +86,34 @@ def update_reply(group_id, user_id, reply_text):
     return True
 
 def get_today_stats(group_id=None):
-    """獲取今天的統計，支援特定群組或全局統計"""
+    """獲取今天的統計，支援特定群組或全局統計，未回覆名單僅統計 reply.db 有出現過的 user"""
     today = datetime.now().strftime("%Y-%m-%d")
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     
     if group_id == "all" or group_id is None:
-        # 獲取所有用戶的統計
         c.execute('''
-            SELECT user_name, reply_text FROM replies
+            SELECT user_id, user_name, reply_text FROM replies
             WHERE DATE(timestamp) = ?
         ''', (today,))
     else:
-        # 獲取特定群組的統計
         c.execute('''
-            SELECT user_name, reply_text FROM replies
+            SELECT user_id, user_name, reply_text FROM replies
             WHERE group_id = ? AND DATE(timestamp) = ?
         ''', (group_id, today))
-    
     rows = c.fetchall()
+
+    # 取得 reply.db 所有 user_id 對應 name（不分日期）
+    c.execute('''SELECT DISTINCT user_id, user_name FROM replies''')
+    all_users = c.fetchall()
     conn.close()
 
-    yes_list = [row[0] for row in rows if row[1] in ["要", "yes", "Yes"]]
-    no_list = [row[0] for row in rows if row[1] in ["不要", "no", "No"]]
-    return yes_list, no_list
+    replied_user_ids = set(row[0] for row in rows)
+    yes_list = [row[1] for row in rows if row[2] in ["要", "yes", "Yes"]]
+    no_list = [row[1] for row in rows if row[2] in ["不要", "no", "No"]]
+    # 未回覆名單 = reply.db 有出現過但今天沒寫入 replies 的 user
+    no_reply_list = [name for uid, name in all_users if uid not in replied_user_ids]
+    return yes_list, no_list, no_reply_list
 
 # 新增程式碼
 def get_name_from_config(user_id):
