@@ -34,6 +34,7 @@ config.json
 # === 系統相關 ===
 .DS_Store         # macOS
 Thumbs.db         # Windows
+*.db
 
 # === 單元測試 / coverage ===
 coverage/

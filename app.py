@@ -100,7 +100,7 @@ def handle_message(event):
             return
 
         # ✅ 回覆「要 / 不要」
-        if reply_text in ["要", "不要", "yes", "Yes", "no", "No"]:
+        if reply_text in ["要", "不要", "Yes", "yes", "No", "no"]:
             group_or_user_id = user_id
             try:
                 if has_replied_today(group_or_user_id, user_id):
@@ -116,7 +116,7 @@ def handle_message(event):
                 logger.error("[資料庫錯誤] %s", e)
             return
         
-        if reply_text in ["通知", "提醒", "send", "Send"]:
+        if reply_text in ["通知", "提醒", "Send", "send"]:
             from scheduler import send_ask_notification  # 若上面已匯入可省略
             user = {
                 "user_id": user_id,
@@ -126,13 +126,13 @@ def handle_message(event):
             reply(event, "已發送提醒通知！")
             return
         
-        if reply_text in ["幫助", "help"]:
+        if reply_text in ["幫助", "Help", "help"]:
             response = (
                 "可用指令：\n"
                 "- 統計：查看出席統計\n"
                 "- 要 / 不要：回覆是否參加活動\n"
                 "- 通知 / 提醒：發送提醒通知\n"
-                "- 幫助 / help：顯示這個幫助訊息\n"
+                "- 幫助 / Help：顯示這個幫助訊息\n"
                 "- 貿協的秘密：查看貿協的秘密"
             )
             reply(event, response)
