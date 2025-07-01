@@ -115,7 +115,36 @@ def handle_message(event):
             except Exception as e:
                 logger.error("[資料庫錯誤] %s", e)
             return
-
+        
+        if reply_text in ["通知", "提醒", "send", "Send"]:
+            from scheduler import send_ask_notification  # 若上面已匯入可省略
+            user = {
+                "user_id": user_id,
+                "name": user_name
+            }
+            send_ask_notification(user)
+            reply(event, "已發送提醒通知！")
+            return
+        
+        if reply_text in ["幫助", "help"]:
+            response = (
+                "可用指令：\n"
+                "- 統計：查看出席統計\n"
+                "- 要 / 不要：回覆是否參加活動\n"
+                "- 通知 / 提醒：發送提醒通知\n"
+                "- 幫助 / help：顯示這個幫助訊息\n"
+                "- 貿協的秘密：查看貿協的秘密"
+            )
+            reply(event, response)
+            return
+        
+        if reply_text in ["貿協的秘密", "The secret of TAITRA"]:
+            response = (
+                "數科中心的Lucas超級帥！"
+            )
+            reply(event, response)
+            return
+        
     except Exception as e:
         logger.error("[Unhandled error in handle_message] %s", e)
 
