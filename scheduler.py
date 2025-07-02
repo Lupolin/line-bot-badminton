@@ -59,8 +59,7 @@ def send_ask_notification(user):
             f"嗨嗨～再提醒一次！\n禮拜五({friday_str})晚上信義國小羽球場，6點到8點。\n"
             "目前還有些人沒回覆會不會來，幫個忙回覆一下 🙏\n"
             "人數掌握一下比較好排場次～\n\n"
-            "請回覆「要」或「不要」喔！\n"
-            "輸入「Help」可以查看說明喔～"
+            "請回覆「要」或「不要」喔！"
         )
     elif today == "friday":
         message = (
@@ -68,15 +67,13 @@ def send_ask_notification(user):
             "還沒回覆的，今天務必講一下要不要來，\n"
             "我們要安排場次、人數，不能再靠猜的了～\n"
             "再不說，真的會派人面對面來問你喔（不是開玩笑）👀\n\n"
-            "請回覆「要」或「不要」喔！\n"
-            "輸入「Help」可以查看說明喔～"
+            "請回覆「要」或「不要」喔！"
         )
     else:
         message = (
             f"嗨各位~\n這週五({friday_str} 18:00-20:00)\n"
             "我們照常在信義國小打球，\n回復一下你會不會來吧，讓我們好抓人數喔~\n\n"
-            "請回覆「要」或「不要」喔！\n"
-            "輸入「Help」可以查看說明喔～"
+            "請回覆「要」或「不要」喔！"
         )
 
     push_message_to_user(user["user_id"], message)
@@ -125,7 +122,7 @@ def scheduled_notification():
                     send_ask_notification(user)
 
 def reset_replies():
-    """每周日晚上九點，將所有人的 reply_text 變為空，has_replied 設為 0"""
+    """將所有人的 reply_text 變為空，has_replied 設為 0"""
     import sqlite3
     conn = sqlite3.connect('reply.db')
     c = conn.cursor()

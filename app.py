@@ -87,7 +87,7 @@ def handle_message(event):
         logger.info(f"[MessageEvent] 使用者 {user_id}（{user_name}）輸入：{reply_text}")
 
         # 📊 查詢統計
-        if reply_text in ["統計"]:
+        if reply_text in ["本週球友", "統計", "Stat", "stat", "統計資料", "統計數據"]:
             yes_list, no_list, no_reply_list = get_today_stats("all")
             yes_names = "\n".join(f"- {name}" for name in yes_list)
             no_names = "\n".join(f"- {name}" for name in no_list)
@@ -116,7 +116,7 @@ def handle_message(event):
                 logger.error("[資料庫錯誤] %s", e)
             return
         
-        if reply_text in ["通知", "提醒", "Send", "send"]:
+        if reply_text in ["發出召集令", "通知", "提醒", "Send", "send"]:
             from scheduler import send_ask_notification  # 若上面已匯入可省略
             user = {
                 "user_id": user_id,
@@ -126,7 +126,7 @@ def handle_message(event):
             reply(event, "已發送提醒通知！")
             return
         
-        if reply_text in ["幫助", "Help", "help"]:
+        if reply_text in ["使用說明", "幫助", "Help", "help"]:
             response = (
                 "可用指令：\n"
                 "- 統計：查看出席統計\n"
