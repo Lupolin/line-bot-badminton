@@ -1,4 +1,4 @@
-name: Deploy Judy's Dinner to EC2
+name: Deploy Badminton to EC2
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
           script: |
             set -e
             echo "[STEP] 切換目錄"
-            cd /home/ec2-user/projects/python/line-bot-judys-dinner
+            cd /home/ec2-user/projects/python/line-bot-badminton
 
             echo "[STEP] 更新程式碼"
             git reset --hard HEAD
@@ -43,4 +43,4 @@ jobs:
             pip show pytz || echo "[WARNING] pytz 沒有成功安裝"
 
             echo "[STEP] 重啟 systemd 服務"
-            sudo systemctl restart judys-dinner
+            sudo systemctl restart badminton
