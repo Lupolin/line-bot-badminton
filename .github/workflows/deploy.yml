@@ -26,7 +26,9 @@ jobs:
 
             echo "[STEP] 更新程式碼"
             git reset --hard HEAD
+            git config pull.rebase false
             git pull origin master
+
 
             echo "[STEP] 啟動 venv"
             if [ -f "venv/bin/activate" ]; then
