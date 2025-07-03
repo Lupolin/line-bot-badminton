@@ -6,7 +6,8 @@ from linebot.v3.webhook import WebhookParser
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     Configuration, ApiClient, MessagingApi,
-    ReplyMessageRequest, TextMessage
+    ReplyMessageRequest, TextMessage,
+    TemplateMessage, ButtonsTemplate, URIAction
 )
 import os
 from db import (
@@ -138,12 +139,30 @@ def handle_message(event):
             reply(event, response)
             return
         
-        if reply_text in ["貿協的秘密", "The secret of TAITRA"]:
-            response = (
-                "數科中心的Lucas超級帥！"
+        if reply_text in ["導航", "地圖", "位置", "Map", "map"]:
+
+            import urllib.parse
+            destination = "臺北市信義區信義國民小學"
+            encoded_destination = urllib.parse.quote(destination)
+            map_url = f"https://www.google.com/maps/dir/?api=1&destination={encoded_destination}"
+
+            buttons_template = ButtonsTemplate(
+                title="導航至信義國小",
+                text="點選下方按鈕，開始導航",
+                actions=[URIAction(label="開啟 Google 導航", uri=map_url)]
             )
-            reply(event, response)
-            return
+
+            template_message = TemplateMessage(
+                alt_text="導航到信義國小",
+                template=buttons_template
+            )
+
+            line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[template_message]
+                )
+            )
         
     except Exception as e:
         logger.error("[Unhandled error in handle_message] %s", e)
