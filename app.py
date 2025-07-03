@@ -139,7 +139,7 @@ def handle_message(event):
             reply(event, response)
             return
         
-        if reply_text in ["導航", "地圖", "位置", "Map", "map"]:
+        if reply_text in ["球場怎麼去", "導航", "地圖", "位置", "Map", "map"]:
 
             import urllib.parse
             destination = "臺北市信義區信義國民小學"
