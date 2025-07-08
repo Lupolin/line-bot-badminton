@@ -142,7 +142,7 @@ def reset_replies_with_log():
 scheduler = BackgroundScheduler(timezone=tz)
 scheduler.add_job(scheduled_notification, 'cron', minute='*')
 
-scheduler.add_job(reset_replies_with_log, 'cron', day_of_week='mon', hour=9, minute=0)
+scheduler.add_job(reset_replies_with_log, 'cron', day_of_week='sun', hour=21, minute=0)
 
 # ✅ 對外暴露的排程啟動函式
 def start_scheduler():
