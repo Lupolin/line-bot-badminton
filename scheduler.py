@@ -1,14 +1,18 @@
-from datetime import datetime, timedelta
-import json
-import os
-import pytz
-import logging
+# scheduler_setup.py  （你的原檔名照舊也可以）
 from apscheduler.schedulers.background import BackgroundScheduler
-from line_service import push_message_to_user
-from db import get_today_stats
-import sqlite3
+from zoneinfo import ZoneInfo
+from datetime import datetime
+import logging
 
-# ✅ 設定 logger
+from services.notification_service import (
+    load_user_config,
+    send_ask_notification,
+    send_summary_notification,
+    reset_replies_with_log,
+)
+from config import config
+
+# ✅ logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 if not logger.handlers:
@@ -17,134 +21,96 @@ if not logger.handlers:
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-# ✅ 設定台灣時區
-tz = pytz.timezone("Asia/Taipei")
+# ✅ 建立排程器（帶時區）
+scheduler = BackgroundScheduler(timezone=config.TIMEZONE)
 
-def get_friday():
-    today = datetime.now(tz)
-    days_ahead = (4 - today.weekday() + 7) % 7  # 4 = Friday
-    if days_ahead == 0:
-        days_ahead = 7  # 今天就是週五的話，下一個週五是 7 天後
-    next_friday = today + timedelta(days=days_ahead)
-    return next_friday.strftime("%m/%d")  # e.g. 06/28
+# 防止重複啟動的標記
+_scheduler_started = False
 
-def load_user_config():
-    try:
-        if not os.path.exists("users_config.json"):
-            logger.warning("找不到 users_config.json，請建立此檔案")
-            return {"users": []}
-        with open("users_config.json", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error("配置載入錯誤: %s", e)
-        return {"users": []}
+def _cron_day(d: str) -> str:
+    """把 full name 轉 APScheduler 縮寫 (tuesday -> tue)"""
+    d = (d or "").strip().lower()
+    mapping = {
+        "monday":"mon","tuesday":"tue","wednesday":"wed",
+        "thursday":"thu","friday":"fri","saturday":"sat","sunday":"sun",
+    }
+    return mapping.get(d, d[:3])
 
-def send_ask_notification(user):
-    friday_str = get_friday()
-    today = datetime.now(tz).strftime("%A").lower()
+def schedule_from_config():
+    """依 users 的 notification_times 直接建立 cron 任務"""
+    cfg = load_user_config()
+    tz = ZoneInfo(config.TIMEZONE)
 
-    # 檢查使用者是否已回覆
-    # 從 reply.db 讀取該 user 是否已回覆
-    conn = sqlite3.connect('reply.db')
-    c = conn.cursor()
-    c.execute("SELECT has_replied FROM replies WHERE user_id = ?", (user["user_id"],))
-    row = c.fetchone()
-    conn.close()
-    if row and str(row[0]).lower() in ("1", "true"):
-        logger.info("%s 已回覆，不發送詢問通知", user["name"])
-        return
+    # 先移除舊的 user-* 任務（避免重複）
+    for job in list(scheduler.get_jobs()):
+        if job.id and job.id.startswith("user-"):
+            scheduler.remove_job(job.id)
+            logger.info("移除舊任務: %s", job.id)
 
-    if today == "thursday":
-        message = (
-            f"嗨嗨～再提醒一次！\n禮拜五({friday_str})晚上信義國小羽球場，6點到8點。\n"
-            "目前還有些人沒回覆會不會來，幫個忙回覆一下 🙏\n"
-            "人數掌握一下比較好排場次～\n\n"
-            "請回覆「要」或「不要」喔！"
-        )
-    elif today == "friday":
-        message = (
-            f"後天就要打球啦～\n禮拜五({friday_str} 18:00–20:00) 信義國小！\n"
-            "還沒回覆的，今天務必講一下要不要來，\n"
-            "我們要安排場次、人數，不能再靠猜的了～\n"
-            "再不說，真的會派人面對面來問你喔（不是開玩笑）👀\n\n"
-            "請回覆「要」或「不要」喔！"
-        )
-    else:
-        message = (
-            f"嗨各位~\n這週五({friday_str} 18:00-20:00)\n"
-            "我們照常在信義國小打球，\n回復一下你會不會來吧，讓我們好抓人數喔~\n\n"
-            "請回覆「要」或「不要」喔！"
-        )
+    for user in cfg.get("users", []):
+        uid = user["user_id"]
+        uname = user.get("name", uid)
 
-    push_message_to_user(user["user_id"], message)
-    logger.info("已向 %s 發送詢問通知", user["name"])
+        for i, nt in enumerate(user.get("notification_times", [])):
+            day  = _cron_day(nt["day"])
+            hour = int(nt["hour"])
+            minute = int(nt["minute"])
+            typ  = nt.get("type", "ask").lower()
 
+            func = send_summary_notification if typ == "summary" else send_ask_notification
+            job_id = f"user-{uid}-{i}-{typ}"
 
-def send_summary_notification(user):
-    try:
-        yes_list, no_list, no_reply_list = get_today_stats("all")
-        friday_str = get_friday()
+            scheduler.add_job(
+                func=func,
+                trigger="cron",
+                day_of_week=day,
+                hour=hour,
+                minute=minute,
+                args=[user],                  # 把 user 當參數傳進通知函式
+                id=job_id,
+                replace_existing=True,
+                timezone=tz
+            )
+            logger.info("已排程 → %s：%s %02d:%02d (%s)", uname, day, hour, minute, typ)
 
-        summary = f"出席統計（{friday_str}）\n"
-        summary += f"✅ 要打球（{len(yes_list)}人）:\n"
-        summary += "\n".join(f"- {name}" for name in yes_list) or "（無）"
-        summary += f"\n\n❌ 不打球（{len(no_list)}人）:\n"
-        summary += "\n".join(f"- {name}" for name in no_list) or "（無）"
-        summary += f"\n\n😡 未回應（{len(no_reply_list)}人）:\n"
-        summary += "\n".join(f"- {name}" for name in no_reply_list) or "（無）"
-
-        push_message_to_user(user["user_id"], summary)
-        logger.info("已向 %s 發送統計摘要", user["name"])
-    except Exception as e:
-        logger.error("摘要發送錯誤: %s", e)
-
-def scheduled_notification():
-    config = load_user_config()
-    current_time = datetime.now(tz)
-    current_day = current_time.strftime("%A").lower()
-    current_hour = current_time.hour
-    current_minute = current_time.minute
-
-    logger.info("排程檢查: %s %02d:%02d（Asia/Taipei）", current_day, current_hour, current_minute)
-
-    for user in config.get("users", []):
-        for notification in user.get("notification_times", []):
-            if (
-                notification["day"] == current_day and
-                notification["hour"] == current_hour and
-                notification["minute"] == current_minute
-            ):
-                if notification["type"] == "ask":
-                    send_ask_notification(user)
-                elif notification["type"] == "summary":
-                    send_summary_notification(user)
-                else:
-                    send_ask_notification(user)
-
-def reset_replies():
-    """將所有人的 reply_text 變為空，has_replied 設為 0"""
-    import sqlite3
-    conn = sqlite3.connect('reply.db')
-    c = conn.cursor()
-    c.execute('''
-        UPDATE replies
-        SET reply_text = '', has_replied = 0
-    ''')
-    conn.commit()
-    conn.close()
-
-# 加入每周日21:00自動執行 reset_replies
-def reset_replies_with_log():
-    reset_replies()
-    logger.info("已重置所有人的回覆狀態（reset_replies）")
-
-# ✅ 建立排程器，但不自動啟動（供 app.py 控制）
-scheduler = BackgroundScheduler(timezone=tz)
-scheduler.add_job(scheduled_notification, 'cron', minute='*')
-
-scheduler.add_job(reset_replies_with_log, 'cron', day_of_week='sun', hour=21, minute=0)
-
-# ✅ 對外暴露的排程啟動函式
 def start_scheduler():
-    scheduler.start()
-    logger.info("排程器已啟動（start_scheduler）")
+    global _scheduler_started
+    
+    # 防止重複啟動
+    if _scheduler_started:
+        logger.warning("排程器已經啟動，跳過重複啟動")
+        return
+    
+    # 檢查排程器狀態
+    if scheduler.running:
+        logger.warning("排程器正在運行中，跳過重複啟動")
+        return
+    
+    try:
+        # ✅ 用 cron 固定時間觸發，不再每分鐘輪詢
+        schedule_from_config()
+
+        # 保留每週重置任務
+        scheduler.add_job(
+            reset_replies_with_log,
+            'cron',
+            day_of_week=config.RESET_REPLIES_DAY,
+            hour=21,
+            minute=0,
+            id="weekly-reset",
+            replace_existing=True
+        )
+
+        scheduler.start()
+        _scheduler_started = True
+        logger.info("排程器已啟動（時區：%s）。已改為固定時間觸發。", config.TIMEZONE)
+        
+        # 顯示當前所有任務
+        jobs = scheduler.get_jobs()
+        logger.info("當前排程任務數量: %d", len(jobs))
+        for job in jobs:
+            logger.info("任務: %s - %s", job.id, job.trigger)
+            
+    except Exception as e:
+        logger.error("啟動排程器時發生錯誤: %s", e)
+        _scheduler_started = False

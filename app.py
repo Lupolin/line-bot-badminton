@@ -1,27 +1,14 @@
 from flask import Flask, request, abort
-from datetime import datetime
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from linebot.v3 import WebhookHandler
-from linebot.v3.webhook import WebhookParser
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import (
-    Configuration, ApiClient, MessagingApi,
-    ReplyMessageRequest, TextMessage,
-    TemplateMessage, ButtonsTemplate, URIAction
-)
-import os
-from db import (
-    init_db,
-    get_today_stats,
-    has_replied_today,
-    update_reply,
-    insert_reply,
-    get_name_from_config  # <-- 這是前面補過的函式
-)
-from scheduler import start_scheduler, get_friday
+from linebot.v3.messaging import Configuration, ApiClient, MessagingApi
+from config import config
+from database.db import init_db
+from services.message_service import MessageService
+from scheduler import start_scheduler
 import logging
-
-
+import os
 
 # ✅ 設定 logger
 logger = logging.getLogger(__name__)
@@ -37,8 +24,8 @@ if not logger.handlers:
 app = Flask(__name__)
 
 # ✅ 初始化 LINE 設定
-channel_secret = os.getenv("LINE_CHANNEL_SECRET")
-channel_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+channel_secret = config.LINE_CHANNEL_SECRET
+channel_access_token = config.LINE_CHANNEL_ACCESS_TOKEN
 
 if not channel_secret or not channel_access_token:
     logger.error("請設定 LINE_CHANNEL_SECRET 和 LINE_CHANNEL_ACCESS_TOKEN")
@@ -48,12 +35,14 @@ handler = WebhookHandler(channel_secret)
 configuration = Configuration(access_token=channel_access_token)
 line_bot_api = MessagingApi(ApiClient(configuration))
 
+# 初始化訊息服務
+message_service = MessageService(line_bot_api)
+
 # ✅ Webhook 路由
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
-    # logger.info("[Callback] Request body: %s", body)
 
     try:
         handler.handle(body, signature)
@@ -63,117 +52,21 @@ def callback():
 
     return 'OK'
 
-# ✅ 發送回覆
-def reply(event, text):
-    try:
-        line_bot_api.reply_message(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=text)]
-            )
-        )
-    except Exception as e:
-        logger.error("[Reply error] %s", e)
-
 # ✅ 處理訊息事件
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
-    friday_str = get_friday()
-
-    try:
-        user_id = event.source.user_id
-        reply_text = event.message.text.strip()
-        user_name = get_name_from_config(user_id)
-
-        logger.info(f"[MessageEvent] 使用者 {user_id}（{user_name}）輸入：{reply_text}")
-
-        # 📊 查詢統計
-        if reply_text in ["本週球友", "統計", "Stat", "stat", "統計資料", "統計數據"]:
-            yes_list, no_list, no_reply_list = get_today_stats("all")
-            yes_names = "\n".join(f"- {name}" for name in yes_list)
-            no_names = "\n".join(f"- {name}" for name in no_list)
-            no_reply_names = "\n".join(f"- {name}" for name in no_reply_list)
-            response = f"出席統計（{friday_str}）\n"
-            response += f"✅ 要打球（{len(yes_list)}人）:\n{yes_names or '（無）'}\n\n"
-            response += f"❌ 不打球（{len(no_list)}人）:\n{no_names or '（無）'}\n\n"
-            response += f"😡 未回應（{len(no_reply_list)}人）:\n{no_reply_names or '（無）'}"
-            reply(event, response)
-            return
-
-        # ✅ 回覆「要 / 不要」
-        if reply_text in ["要", "不要", "Yes", "yes", "No", "no"]:
-            group_or_user_id = user_id
-            try:
-                if has_replied_today(group_or_user_id, user_id):
-                    updated = update_reply(group_or_user_id, user_id, reply_text)
-                    if updated:
-                        logger.info(f"[記錄更新] {user_name} 已更新為「{reply_text}」")
-                    else:
-                        logger.info(f"[記錄略過] {user_name} 已回覆相同內容「{reply_text}」，略過")
-                else:
-                    insert_reply(group_or_user_id, user_id, user_name, reply_text)
-                    logger.info(f"[記錄新增] {user_name} 回覆「{reply_text}」")
-            except Exception as e:
-                logger.error("[資料庫錯誤] %s", e)
-            return
-        
-        if reply_text in ["發出召集令", "通知", "提醒", "Send", "send"]:
-            from scheduler import send_ask_notification  # 若上面已匯入可省略
-            user = {
-                "user_id": user_id,
-                "name": user_name
-            }
-            send_ask_notification(user)
-            reply(event, "已發送提醒通知！")
-            return
-        
-        if reply_text in ["使用說明", "幫助", "Help", "help"]:
-            response = (
-                "可用指令：\n"
-                "- 統計：查看出席統計\n"
-                "- 要 / 不要：回覆是否參加活動\n"
-                "- 通知 / 提醒：發送提醒通知\n"
-                "- 幫助 / Help：顯示這個幫助訊息\n"
-                "- 貿協的秘密：查看貿協的秘密"
-            )
-            reply(event, response)
-            return
-        
-        if reply_text in ["球場怎麼去", "導航", "地圖", "位置", "Map", "map"]:
-
-            import urllib.parse
-            destination = "臺北市信義區信義國民小學"
-            encoded_destination = urllib.parse.quote(destination)
-            map_url = f"https://www.google.com/maps/dir/?api=1&destination={encoded_destination}"
-
-            buttons_template = ButtonsTemplate(
-                title="導航至信義國小",
-                text="點選下方按鈕，開始導航",
-                actions=[URIAction(label="開啟 Google 導航", uri=map_url)]
-            )
-
-            template_message = TemplateMessage(
-                alt_text="導航到信義國小",
-                template=buttons_template
-            )
-
-            line_bot_api.reply_message(
-                ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[template_message]
-                )
-            )
-        
-    except Exception as e:
-        logger.error("[Unhandled error in handle_message] %s", e)
+    """處理 LINE 訊息事件"""
+    message_service.handle_message(event)
 
 # ✅ 初始化（給 Gunicorn 或本地開發使用）
 init_db()
 
 def main():
     print("✅ Running local Flask server")
+    # 本地執行時啟動排程器
     start_scheduler()
-    app.run(host="0.0.0.0", port=5003, debug=False)
+    flask_config = config.get_flask_config()
+    app.run(**flask_config)
 
 # ✅ 若是本地執行，跑 main()（含 scheduler 與 app.run）
 # ✅ 若是 Gunicorn，則由環境變數控制是否啟動 scheduler
@@ -181,4 +74,7 @@ if __name__ == "__main__":
     main()
 elif os.environ.get("RUN_SCHEDULER") == "true":
     print("✅ Starting scheduler under Gunicorn")
+    # Gunicorn 環境下啟動排程器
     start_scheduler()
+else:
+    print("ℹ️ 排程器未啟動（僅在本地執行或 RUN_SCHEDULER=true 時啟動）")

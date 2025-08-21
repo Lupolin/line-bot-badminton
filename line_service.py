@@ -1,11 +1,9 @@
 from linebot.v3.messaging import MessagingApi, Configuration, ApiClient
 from linebot.v3.messaging.models import TextMessage, PushMessageRequest
-import os
-from dotenv import load_dotenv
+from config import config
 
-load_dotenv()
-
-configuration = Configuration(access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
+# 使用配置管理系統
+configuration = Configuration(access_token=config.LINE_CHANNEL_ACCESS_TOKEN)
 api_client = ApiClient(configuration=configuration)
 line_bot_api = MessagingApi(api_client)
 
